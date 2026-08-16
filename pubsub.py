@@ -1,63 +1,96 @@
-# pubsub.py
-
-from database import alerts_collection
-from datetime import datetime
+from database import (
+    create_sos,
+    get_all_alerts,
+    update_alert_status,
+    delete_alert,
+)
 
 
 def send_sos_alert(user, location):
     """
-    Save a new SOS alert to MongoDB.
+    Create and save a new SOS alert.
     """
 
-    alert = {
-        "student_name": user["name"],
-        "email": user["email"],
-        "role": user["role"],
-        "latitude": location["latitude"],
-        "longitude": location["longitude"],
-        "location": location["location"],
-        "time": location["timestamp"],
-        "status": "Pending"
-    }
+    try:
 
-    alerts_collection.insert_one(alert)
+        alert_id = create_sos(
+            student_id=user["_id"],
+            student_name=user["name"],
+            latitude=location["latitude"],
+            longitude=location["longitude"],
+        )
 
-    return alert
+        return {
+            "success": True,
+            "alert_id": str(alert_id),
+            "message": "SOS alert sent successfully."
+        }
+
+    except Exception as error:
+
+        print("SOS Alert Error:", error)
+
+        return {
+            "success": False,
+            "alert_id": None,
+            "message": "Unable to send SOS alert."
+        }
 
 
-def get_all_alerts():
+def get_sos_alerts():
     """
     Get all SOS alerts.
     """
 
-    return list(alerts_collection.find())
+    try:
+
+        return get_all_alerts()
+
+    except Exception as error:
+
+        print("Get Alerts Error:", error)
+
+        return []
 
 
-def update_alert_status(alert_id, status):
+def change_alert_status(alert_id, status):
     """
-    Update alert status.
+    Change the status of an SOS alert.
     """
 
-    from bson import ObjectId
+    try:
 
-    alerts_collection.update_one(
-        {"_id": ObjectId(alert_id)},
-        {
-            "$set": {
-                "status": status,
-                "updated_at": datetime.now().strftime("%d-%m-%Y %H:%M:%S")
-            }
-        }
-    )
+        result = update_alert_status(
+            alert_id,
+            status
+        )
+
+        return result
+
+    except Exception as error:
+
+        print(
+            "Update Alert Status Error:",
+            error
+        )
+
+        return False
 
 
-def delete_alert(alert_id):
+def remove_alert(alert_id):
     """
     Delete an SOS alert.
     """
 
-    from bson import ObjectId
+    try:
 
-    alerts_collection.delete_one(
-        {"_id": ObjectId(alert_id)}
-    )
+        return delete_alert(alert_id)
+
+    except Exception as error:
+
+        print(
+            "Delete Alert Error:",
+            error
+        )
+
+        return False
