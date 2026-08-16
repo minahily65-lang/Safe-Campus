@@ -1,33 +1,34 @@
-from pymongo import MongoClient
-from bson.objectid import ObjectId
 from datetime import datetime
+from bson.objectid import ObjectId
+from config import (
+    users_collection,
+    alerts_collection,
+    history_collection
+)
 
-# -----------------------------
-# MongoDB Connection
-# -----------------------------
-client = MongoClient("mongodb://localhost:27017/")
 
-db = client["safe_campus"]
+# =========================================================
+# USERS
+# =========================================================
 
-users = db["users"]
-sos_alerts = db["sos_alerts"]
-emergency_history = db["emergency_history"]
+def register_user(name, email, phone, password, role):
+    """
+    Register a new user.
+    Returns True if successful, False if email already exists.
+    """
 
-# -----------------------------
-# USERS COLLECTION
-# -----------------------------
+    existing_user = users_collection.find_one({
+        "email": email
+    })
 
-def register_user(name, email, password, phone, role):
-
-    # Check if email already exists
-    if users.find_one({"email": email}):
+    if existing_user:
         return False
 
-    users.insert_one({
+    users_collection.insert_one({
         "name": name,
         "email": email,
-        "password": password,
         "phone": phone,
+        "password": password,
         "role": role,
         "created_at": datetime.now()
     })
@@ -36,169 +37,228 @@ def register_user(name, email, password, phone, role):
 
 
 def login_user(email, password):
+    """
+    Find user using email and password.
+    """
 
-    return users.find_one({
+    return users_collection.find_one({
         "email": email,
         "password": password
     })
 
 
 def get_all_users():
+    """
+    Return all registered users.
+    """
 
-    return list(users.find())
+    return list(
+        users_collection.find().sort("created_at", -1)
+    )
 
 
 def get_user_by_id(user_id):
+    """
+    Find a user by MongoDB ObjectId.
+    """
 
-    return users.find_one({
-        "_id": ObjectId(user_id)
+    try:
+        return users_collection.find_one({
+            "_id": ObjectId(user_id)
+        })
+    except Exception:
+        return None
+
+
+def get_user_by_email(email):
+    """
+    Find a user by email.
+    """
+
+    return users_collection.find_one({
+        "email": email
     })
 
 
 def delete_user(user_id):
+    """
+    Delete a user by ID.
+    """
 
-    users.delete_one({
-        "_id": ObjectId(user_id)
-    })
+    try:
+        result = users_collection.delete_one({
+            "_id": ObjectId(user_id)
+        })
 
-def get_user_by_email(email):
-    return users.find_one({"email": email})
+        return result.deleted_count > 0
+
+    except Exception:
+        return False
 
 
-def register_user(name, email, phone, password, role):
+# =========================================================
+# SOS ALERTS
+# =========================================================
 
-    users.insert_one({
-        "name": name,
-        "email": email,
-        "phone": phone,
-        "password": password,
-        "role": role
-    })
+def create_sos(
+    student_id,
+    student_name,
+    latitude,
+    longitude
+):
+    """
+    Create a new SOS emergency alert.
+    """
 
-# -----------------------------
-# SOS ALERTS COLLECTION
-# -----------------------------
-
-def create_sos(student_id,
-               student_name,
-               latitude,
-               longitude):
-
-    sos_alerts.insert_one({
-
+    alert = {
         "student_id": ObjectId(student_id),
-
         "student_name": student_name,
-
         "latitude": latitude,
-
         "longitude": longitude,
-
         "status": "Pending",
-
         "created_at": datetime.now()
+    }
 
-    })
+    result = alerts_collection.insert_one(alert)
+
+    return result.inserted_id
 
 
 def get_all_alerts():
+    """
+    Get all SOS alerts.
+    Newest alerts appear first.
+    """
 
     return list(
-        sos_alerts.find().sort("created_at", -1)
+        alerts_collection.find().sort("created_at", -1)
+    )
+
+
+def get_active_alerts():
+    """
+    Get only active/pending SOS alerts.
+    """
+
+    return list(
+        alerts_collection.find({
+            "status": "Pending"
+        }).sort("created_at", -1)
     )
 
 
 def update_alert_status(alert_id, status):
+    """
+    Update SOS alert status.
+    """
 
-    sos_alerts.update_one(
-
-        {
-            "_id": ObjectId(alert_id)
-        },
-
-        {
-            "$set":
+    try:
+        result = alerts_collection.update_one(
             {
-                "status": status
+                "_id": ObjectId(alert_id)
+            },
+            {
+                "$set": {
+                    "status": status,
+                    "updated_at": datetime.now()
+                }
             }
-        }
+        )
 
-    )
+        return result.modified_count > 0
+
+    except Exception:
+        return False
 
 
 def delete_alert(alert_id):
+    """
+    Delete an SOS alert.
+    """
 
-    sos_alerts.delete_one({
-        "_id": ObjectId(alert_id)
-    })
+    try:
+        result = alerts_collection.delete_one({
+            "_id": ObjectId(alert_id)
+        })
 
-# -----------------------------
-# EMERGENCY HISTORY COLLECTION
-# -----------------------------
+        return result.deleted_count > 0
 
-def save_history(alert_id,
-                 student_name,
-                 security_name,
-                 latitude,
-                 longitude,
-                 remarks):
+    except Exception:
+        return False
 
-    emergency_history.insert_one({
 
+# =========================================================
+# EMERGENCY HISTORY
+# =========================================================
+
+def save_history(
+    alert_id,
+    student_name,
+    security_name,
+    latitude,
+    longitude,
+    remarks
+):
+    """
+    Save a resolved emergency into history.
+    """
+
+    history = {
         "alert_id": ObjectId(alert_id),
-
         "student_name": student_name,
-
         "security_name": security_name,
-
         "latitude": latitude,
-
         "longitude": longitude,
-
         "resolved_at": datetime.now(),
-
         "remarks": remarks
+    }
 
-    })
+    result = history_collection.insert_one(history)
+
+    return result.inserted_id
 
 
 def get_history():
+    """
+    Get emergency history.
+    Newest records appear first.
+    """
 
     return list(
-        emergency_history.find().sort("resolved_at", -1)
+        history_collection.find().sort("resolved_at", -1)
     )
 
 
-# -----------------------------
+# =========================================================
 # DEFAULT ADMIN
-# -----------------------------
+# =========================================================
 
 def create_default_admin():
+    """
+    Create default administrator if no Admin exists.
+    """
 
-    admin = users.find_one({
+    admin = users_collection.find_one({
         "role": "Admin"
     })
 
     if admin is None:
 
-        users.insert_one({
-
+        users_collection.insert_one({
             "name": "Administrator",
-
             "email": "admin@gmail.com",
-
             "password": "admin123",
-
             "phone": "03000000000",
-
             "role": "Admin",
-
             "created_at": datetime.now()
-
         })
-    
-    
 
+        print("Default Admin Created.")
+
+
+# =========================================================
+# DATABASE STARTUP
+# =========================================================
 
 create_default_admin()
 
