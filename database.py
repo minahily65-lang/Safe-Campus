@@ -55,6 +55,27 @@ def get_all_users():
     return list(
         users_collection.find().sort("created_at", -1)
     )
+    def create_staff_user(name, email, phone, password, role):
+    """
+    Create a Security or Admin user from Admin panel.
+    """
+
+    if role not in ["Security", "Admin"]:
+        return False
+
+    if users_collection.find_one({"email": email}):
+        return False
+
+    users_collection.insert_one({
+        "name": name,
+        "email": email,
+        "phone": phone,
+        "password": password,
+        "role": role,
+        "created_at": datetime.now()
+    })
+
+    return True
 
 
 def get_user_by_id(user_id):
